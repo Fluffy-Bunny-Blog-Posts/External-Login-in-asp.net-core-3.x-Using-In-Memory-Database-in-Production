@@ -6,7 +6,9 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -80,6 +82,8 @@ namespace WebAppExternalLogin.Areas.Identity.Pages.Account
                 ErrorMessage = "Error loading external login information.";
                 return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
             }
+            var oidc = await HarvestOidcDataAsync();
+
             var externalPrincipalClaims = info.Principal.Claims.ToList();
 
             var nameIdentifier = GetValueFromClaim(externalPrincipalClaims, ClaimTypes.NameIdentifier);
@@ -100,7 +104,9 @@ namespace WebAppExternalLogin.Areas.Identity.Pages.Account
                 {
                     new Claim(".displayName", user.Id),
                     new Claim(".externalNamedIdentitier",nameIdentifier),
-                    new Claim(".loginProvider",info.LoginProvider)
+                    new Claim(".loginProvider",info.LoginProvider),
+                    new Claim(".id_token",oidc["id_token"]),
+                    new Claim(".access_token",oidc["access_token"])
                 };
 
                 // normalized id.
@@ -180,6 +186,23 @@ namespace WebAppExternalLogin.Areas.Identity.Pages.Account
             var value = theClaim?.Value;
             return value;
         }
+        private async Task<Dictionary<string, string>> HarvestOidcDataAsync()
+        {
+            var at = await HttpContext.GetTokenAsync(IdentityConstants.ExternalScheme, "access_token");
+            var idt = await HttpContext.GetTokenAsync(IdentityConstants.ExternalScheme, "id_token");
+            var rt = await HttpContext.GetTokenAsync(IdentityConstants.ExternalScheme, "refresh_token");
+            var tt = await HttpContext.GetTokenAsync(IdentityConstants.ExternalScheme, "token_type");
+            var ea = await HttpContext.GetTokenAsync(IdentityConstants.ExternalScheme, "expires_at");
 
+            var oidc = new Dictionary<string, string>
+            {
+                {"access_token", at},
+                {"id_token", idt},
+                {"refresh_token", rt},
+                {"token_type", tt},
+                {"expires_at", ea}
+            };
+            return oidc;
+        }
     }
 }
